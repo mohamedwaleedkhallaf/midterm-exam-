@@ -1,2 +1,3 @@
-# midterm-exam-
-beam desgin 
+pandas>=2.0.0
+numpy>=1.24.0
+openpyxl>=3.1.0
