@@ -2,32 +2,23 @@ import pandas as pd
 import numpy as np
 
 # =============================
-# INPUT (CSV FILE)
+# INPUT
 # =============================
 input_file = "beam_input.csv"
 output_file = "beam_output.xlsx"
 
-# Read CSV (auto handle ; or ,)
+# Read CSV (handles ; or ,)
 try:
     df = pd.read_csv(input_file)
 except:
     df = pd.read_csv(input_file, sep=';')
 
-# Clean column names (remove spaces)
+# Clean column names
 df.columns = df.columns.str.strip()
 
-# OPTIONAL: print columns to debug
-print("Detected columns:", df.columns)
-
-# Rename common variations automatically
+# Rename columns to standard names
 rename_map = {
-    'Length': 'L',
-    'length': 'L',
-    'Span': 'L',
     'Span_m': 'L',
-    'Load': 'w',
-    'load': 'w',
-    'W': 'w',
     'UDL_kN_per_m': 'w',
     'E_MPa': 'E',
     'I_mm4': 'I',
@@ -39,31 +30,36 @@ df = df.rename(columns=rename_map)
 
 results = []
 
+# =============================
+# CALCULATIONS
+# =============================
 for i, row in df.iterrows():
+
+    # Inputs
     L = row['L']                # m
     w = row['w']                # kN/m
-    E = row['E'] * 1e6          # MPa -> N/m2
-    I = row['I'] * 1e-12        # mm4 -> m4
-    fy = row['fy'] * 1e6        # MPa -> N/m2
-    Z = row['Z'] * 1e-9         # mm3 -> m3
+    E = row['E'] * 1e6          # MPa → N/m²
+    I = row['I'] * 1e-12        # mm⁴ → m⁴
+    fy = row['fy'] * 1e6        # MPa → N/m²
+    Z = row['Z'] * 1e-9         # mm³ → m³
 
-    # Convert load to N/m
-    w_N = w * 1000
-
-    # =============================
-    # MAX BENDING MOMENT
-    # =============================
-    Mmax = w_N * L**2 / 8      # N.m
+    # Convert load
+    w_N = w * 1000  # N/m
 
     # =============================
-    # MAX DEFLECTION
+    # BENDING MOMENT
     # =============================
-    delta = (5 * w_N * L**4) / (384 * E * I)   # meters
+    Mmax = w_N * L**2 / 8
 
     # =============================
-    # DESIGN CHECK
+    # DEFLECTION
     # =============================
-    stress = Mmax / Z          # N/m2
+    delta = (5 * w_N * L**4) / (384 * E * I)
+
+    # =============================
+    # STRESS CHECK
+    # =============================
+    stress = Mmax / Z
     utilization = stress / fy
 
     if utilization <= 1:
@@ -71,38 +67,38 @@ for i, row in df.iterrows():
     else:
         status = "NOT SAFE"
 
+    # =============================
+    # SPAN / DEFLECTION LIMIT CHECK
+    # =============================
+    limit_ratio = 250  # L/250 (you can change to 300 or 360)
+
+    allowable_deflection = L / limit_ratio
+
+    if delta <= allowable_deflection:
+        span_status = "OK"
+    else:
+        span_status = "NOT OK"
+
+    # =============================
+    # STORE RESULTS
+    # =============================
     results.append({
         "Beam_ID": i+1,
+        "Span (m)": L,
         "Mmax (kN.m)": Mmax / 1000,
         "Deflection (mm)": delta * 1000,
+        "Allowable Deflection (mm)": allowable_deflection * 1000,
+        "Span Check": span_status,
         "Stress (MPa)": stress / 1e6,
         "Utilization": utilization,
-        "Status": status
+        "Bending Status": status
     })
 
 # =============================
-# SAVE RESULTS
+# OUTPUT TO EXCEL
 # =============================
 output_df = pd.DataFrame(results)
 output_df.to_excel(output_file, index=False)
 
-print("Analysis complete. Results saved to", output_file)
-
-# =============================
-# SAMPLE CSV GENERATOR
-# =============================
-def create_sample_csv():
-    data = {
-        'L': [6, 8],
-        'w': [10, 15],
-        'E': [200000, 200000],
-        'I': [8.5e8, 1.2e9],
-        'fy': [250, 250],
-        'Z': [3.4e5, 5.2e5]
-    }
-    sample_df = pd.DataFrame(data)
-    sample_df.to_csv("beam_input.csv", index=False)
-    print("Sample CSV created.")
-
-# Uncomment to generate sample file
-# create_sample_csv()
+print("✅ Analysis complete!")
+print("📁 Results saved to:", output_file)
